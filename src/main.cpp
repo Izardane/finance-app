@@ -1,5 +1,6 @@
 #include "finance/Portfolio.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
@@ -8,8 +9,13 @@
 
 namespace {
 
-constexpr auto kDataFile = "data/portfolio.txt";
-constexpr auto kChartFile = "dashboard_pie.svg";
+std::string data_dir() {
+    const char* env = std::getenv("FINANCE_DATA_DIR");
+    return env ? env : "data";
+}
+
+std::string kDataFile() { return data_dir() + "/portfolio.txt"; }
+std::string kChartFile() { return data_dir() + "/dashboard_pie.svg"; }
 
 std::string mask_str(const std::string& s) {
     std::string out;
@@ -131,7 +137,7 @@ void add_or_update_earmarks(finance::Portfolio& portfolio, bool masked = false) 
 
 int main() {
     finance::Portfolio portfolio;
-    if (const auto loaded = finance::load_portfolio(kDataFile)) {
+    if (const auto loaded = finance::load_portfolio(kDataFile())) {
         portfolio = *loaded;
     } else {
         std::cout << "Could not read existing portfolio data. Starting with an empty portfolio.\n";
@@ -168,10 +174,10 @@ int main() {
         case 4:
             if (const auto error = portfolio.validate()) {
                 std::cout << "Cannot save: " << *error << '\n';
-            } else if (finance::save_portfolio(portfolio, kDataFile)
-                    && finance::write_pie_chart_svg(portfolio, kChartFile)) {
-                std::cout << "Saved to " << std::filesystem::absolute(kDataFile) << '\n';
-                std::cout << "Pie chart generated at " << std::filesystem::absolute(kChartFile) << '\n';
+            } else if (finance::save_portfolio(portfolio, kDataFile())
+                    && finance::write_pie_chart_svg(portfolio, kChartFile())) {
+                std::cout << "Saved to " << std::filesystem::absolute(kDataFile()) << '\n';
+                std::cout << "Pie chart generated at " << std::filesystem::absolute(kChartFile()) << '\n';
             } else {
                 std::cout << "Save failed.\n";
             }
@@ -181,8 +187,8 @@ int main() {
                 std::cout << "Not saving invalid portfolio: " << *error << '\n';
                 return 1;
             }
-            finance::save_portfolio(portfolio, kDataFile);
-            finance::write_pie_chart_svg(portfolio, kChartFile);
+            finance::save_portfolio(portfolio, kDataFile());
+            finance::write_pie_chart_svg(portfolio, kChartFile());
             return 0;
         case 6:
             privacy_hidden = !privacy_hidden;

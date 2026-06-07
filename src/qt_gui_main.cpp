@@ -39,9 +39,14 @@
 
 namespace {
 
-constexpr auto kDataFile = "data/portfolio.txt";
-constexpr auto kChartFile = "dashboard_pie.svg";
-constexpr auto kBackupDir = "data/backups";
+std::string data_dir() {
+    const char* env = std::getenv("FINANCE_DATA_DIR");
+    return env ? env : "data";
+}
+
+std::string kDataFile() { return data_dir() + "/portfolio.txt"; }
+std::string kChartFile() { return data_dir() + "/dashboard_pie.svg"; }
+std::string kBackupDir() { return data_dir() + "/backups"; }
 
 QString qstr(const std::string& value) {
     return QString::fromStdString(value);
@@ -406,7 +411,7 @@ public:
         resize(1100, 720);
         setMinimumSize(860, 560);
 
-        if (const auto loaded = finance::load_portfolio(kDataFile)) {
+        if (const auto loaded = finance::load_portfolio(kDataFile())) {
             portfolio_ = *loaded;
         }
 
@@ -800,17 +805,17 @@ private:
     }
 
     void save() {
-        finance::save_portfolio(portfolio_, kDataFile);
-        finance::write_pie_chart_svg(portfolio_, kChartFile);
+        finance::save_portfolio(portfolio_, kDataFile());
+        finance::write_pie_chart_svg(portfolio_, kChartFile());
     }
 
     std::filesystem::path backup_path() const {
         const QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss_zzz");
-        return std::filesystem::path(kBackupDir) / ("portfolio_backup_" + stamp.toStdString() + ".txt");
+        return std::filesystem::path(kBackupDir()) / ("portfolio_backup_" + stamp.toStdString() + ".txt");
     }
 
     bool export_backup(bool notify) {
-        std::filesystem::create_directories(kBackupDir);
+        std::filesystem::create_directories(kBackupDir());
         const auto path = backup_path();
         if (!finance::save_portfolio(portfolio_, path)) {
             QMessageBox::warning(this, "Export failed", "Could not write the backup file.");
@@ -839,14 +844,14 @@ private:
     }
 
     void import_latest_backup() {
-        if (!std::filesystem::exists(kBackupDir)) {
+        if (!std::filesystem::exists(kBackupDir())) {
             QMessageBox::information(this, "No backup", "No backups found in data/backups.");
             return;
         }
 
         std::filesystem::path latest;
         std::filesystem::file_time_type latest_time{};
-        for (const auto& entry : std::filesystem::directory_iterator(kBackupDir)) {
+        for (const auto& entry : std::filesystem::directory_iterator(kBackupDir())) {
             if (!entry.is_regular_file() || entry.path().extension() != ".txt") {
                 continue;
             }
