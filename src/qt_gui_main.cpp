@@ -84,9 +84,10 @@ public:
         setMouseTracking(true);
     }
 
-    void set_portfolio(const finance::Portfolio* portfolio, bool privacy = false) {
+    void set_portfolio(const finance::Portfolio* portfolio, bool privacy = false, bool dark = false) {
         portfolio_ = portfolio;
         privacy_ = privacy;
+        dark_ = dark;
         update();
     }
 
@@ -94,6 +95,10 @@ protected:
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
+        const auto c = [this](const QString& light, const QString& dark) {
+            return QColor(dark_ ? dark : light);
+        };
+        painter.fillRect(rect(), c("#ffffff", "#1e293b"));
 
         constexpr int legend_bottom_margin = 90;
         const QRectF bounds = rect().adjusted(18, 18, -18, -18 - legend_bottom_margin);
@@ -105,9 +110,9 @@ protected:
 
         painter.setPen(Qt::NoPen);
         if (portfolio_ == nullptr || portfolio_->total_cents() <= 0) {
-            painter.setBrush(QColor("#e2e8f0"));
+            painter.setBrush(c("#e2e8f0", "#334155"));
             painter.drawEllipse(pie);
-            painter.setPen(QColor("#64748b"));
+            painter.setPen(c("#64748b", "#94a3b8"));
             painter.drawText(pie, Qt::AlignCenter, "No data yet");
             return;
         }
@@ -127,7 +132,7 @@ protected:
         }
 
         const QRectF inner = pie.adjusted(side * 0.32, side * 0.32, -side * 0.32, -side * 0.32);
-        painter.setBrush(QColor("#ffffff"));
+        painter.setBrush(c("#ffffff", "#1e293b"));
         painter.drawEllipse(inner);
 
         draw_legend(painter, slices, pie);
@@ -190,28 +195,39 @@ protected:
 
 private:
     void draw_legend(QPainter& painter, const std::vector<finance::PieSlice>& slices, const QRectF& pie) {
+        const auto c = [this](const QString& light, const QString& dark) {
+            return QColor(dark_ ? dark : light);
+        };
+        const int margin = 24;
+        const int dot = 12;
+        const int gap = 6;
+        const int max_x = width() - margin;
         int y = static_cast<int>(pie.bottom() + 16);
-        int x = 24;
+        int x = margin;
         for (std::size_t i = 0; i < slices.size(); ++i) {
-            painter.setBrush(palette_color(i));
-            painter.setPen(Qt::NoPen);
-            painter.drawRect(x, y, 12, 12);
-            painter.setPen(QColor("#0f172a"));
-            const QColor text_color = privacy_ ? QColor("#94a3b8") : QColor("#0f172a");
-            painter.setPen(text_color);
-            const QString text = fmt(slices[i].amount_cents, privacy_);
-            painter.drawText(x + 18, y + 11, qstr(slices[i].label + "  ") + text);
+            const QString label = qstr(slices[i].label);
+            const QString amount = fmt(slices[i].amount_cents, privacy_);
+            const QString full = label + "  " + amount;
+            const int item_w = dot + gap + painter.fontMetrics().horizontalAdvance(full) + 16;
 
-            x += 18 + painter.fontMetrics().horizontalAdvance(text) + 16;
-            if (x > width() - 60) {
-                x = 24;
+            if (x > margin && x + item_w > max_x) {
+                x = margin;
                 y += 24;
             }
+
+            painter.setBrush(palette_color(i));
+            painter.setPen(Qt::NoPen);
+            painter.drawRect(x, y, dot, dot);
+            painter.setPen(privacy_ ? c("#94a3b8", "#64748b") : c("#0f172a", "#e2e8f0"));
+            painter.drawText(x + dot + gap, y + 11, full);
+
+            x += item_w;
         }
     }
 
     const finance::Portfolio* portfolio_{};
     bool privacy_{};
+    bool dark_{};
     QRectF last_pie_rect_;
     std::vector<std::pair<int, int>> slice_ranges_;
 };
@@ -222,9 +238,10 @@ public:
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     }
 
-    void set_portfolio(finance::Portfolio* portfolio, bool privacy = false) {
+    void set_portfolio(finance::Portfolio* portfolio, bool privacy = false, bool dark = false) {
         portfolio_ = portfolio;
         privacy_ = privacy;
+        dark_ = dark;
         update();
         updateGeometry();
     }
@@ -235,12 +252,15 @@ protected:
     void paintEvent(QPaintEvent*) override {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.fillRect(rect(), QColor("#ffffff"));
+        const auto c = [this](const QString& light, const QString& dark) {
+            return QColor(dark_ ? dark : light);
+        };
+        painter.fillRect(rect(), c("#ffffff", "#1e293b"));
 
         hit_regions_.clear();
 
         if (portfolio_ == nullptr || portfolio_->assets().empty()) {
-            painter.setPen(QColor("#64748b"));
+            painter.setPen(c("#64748b", "#94a3b8"));
             painter.drawText(rect(), Qt::AlignCenter, "Add investment categories to start allocating earmarks.");
             return;
         }
@@ -250,13 +270,13 @@ protected:
         int y = 26;
         for (const auto& asset : portfolio_->assets()) {
             painter.setFont(label_font);
-            painter.setPen(QColor("#0f172a"));
+            painter.setPen(c("#0f172a", "#e2e8f0"));
             painter.drawText(24, y, qstr(asset.name + "  ") + fmt(asset.amount_cents, privacy_));
             y += 14;
 
             const QRect bar(24, y, width() - 48, 28);
-            painter.setPen(QColor("#cbd5e1"));
-            painter.setBrush(QColor("#f1f5f9"));
+            painter.setPen(c("#cbd5e1", "#475569"));
+            painter.setBrush(c("#f1f5f9", "#0f172a"));
             painter.drawRoundedRect(bar, 6, 6);
 
             int x = bar.x();
@@ -276,14 +296,14 @@ protected:
             }
 
             painter.setFont(QFont{});
-            painter.setPen(QColor("#475569"));
+            painter.setPen(c("#475569", "#94a3b8"));
             y += 48;
             int legend_x = 24;
             for (std::size_t i = 0; i < asset.earmarks.size(); ++i) {
                 painter.setBrush(palette_color(i));
                 painter.setPen(Qt::NoPen);
                 painter.drawRect(legend_x, y - 10, 10, 10);
-                painter.setPen(QColor("#475569"));
+                painter.setPen(c("#475569", "#94a3b8"));
                 const QString label = qstr(asset.earmarks[i].name + " ") + fmt(asset.earmarks[i].amount_cents, privacy_);
                 painter.drawText(legend_x + 16, y, label);
                 legend_x += 180;
@@ -293,6 +313,7 @@ protected:
                 }
             }
             if (asset.earmarks.empty()) {
+                painter.setPen(c("#475569", "#94a3b8"));
                 painter.drawText(24, y, "No earmarks allocated.");
             }
             y += 38;
@@ -374,6 +395,7 @@ private:
 
     finance::Portfolio* portfolio_{};
     bool privacy_{};
+    bool dark_{};
     std::vector<HitRegion> hit_regions_;
 };
 
@@ -409,7 +431,9 @@ private:
     QTabWidget* tabs_{};
     QLabel* total_label_{};
     QPushButton* privacy_btn_{};
+    QPushButton* dark_btn_{};
     bool privacy_hidden_{true};
+    bool dark_mode_{false};
     PieChart* pie_chart_{};
     QTableWidget* category_table_{};
     QLineEdit* category_name_{};
@@ -437,13 +461,17 @@ private:
         auto* total_title = new QLabel("Total portfolio");
         total_title->setObjectName("muted");
         privacy_btn_ = new QPushButton(QString::fromUtf8("\xF0\x9F\x91\x81\xE2\x80\x8D\xE2\x97\xA8\xEF\xB8\x8F"));
-        privacy_btn_->setFixedSize(28, 28);
-        privacy_btn_->setToolTip("Toggle privacy (hide/show amounts)");
-        privacy_btn_->setCursor(Qt::PointingHandCursor);
-        privacy_btn_->setStyleSheet("QPushButton { background: transparent; border: 1px solid #cbd5e1; border-radius: 14px; font-size: 14px; padding: 0; } QPushButton:hover { background: #e2e8f0; }");
         connect(privacy_btn_, &QPushButton::clicked, this, [this] { toggle_privacy(); });
+
+        dark_btn_ = new QPushButton(QString::fromUtf8("\xF0\x9F\x8C\x99"));
+        dark_btn_->setFixedSize(28, 28);
+        dark_btn_->setToolTip("Toggle dark mode");
+        dark_btn_->setCursor(Qt::PointingHandCursor);
+        connect(dark_btn_, &QPushButton::clicked, this, [this] { toggle_dark_mode(); });
+
         total_title_layout->addWidget(total_title);
         total_title_layout->addStretch(1);
+        total_title_layout->addWidget(dark_btn_);
         total_title_layout->addWidget(privacy_btn_);
         total_label_ = new QLabel;
         total_label_->setObjectName("total");
@@ -607,24 +635,38 @@ private:
     }
 
     void apply_style() {
-        qApp->setStyleSheet(R"(
-            QMainWindow, QWidget { background: #f1f5f9; color: #0f172a; font-size: 14px; }
+        const bool d = dark_mode_;
+        qApp->setStyleSheet(QString(R"(
+            QMainWindow, QWidget { background: %1; color: %2; font-size: 14px; }
             QTabWidget::pane { border: 0; }
-            QTabBar::tab { background: #e2e8f0; padding: 10px 18px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; }
-            QTabBar::tab:selected { background: #ffffff; color: #1d4ed8; }
-            QFrame#card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }
-            QLabel#sectionTitle { font-size: 18px; font-weight: 700; color: #0f172a; }
-            QLabel#total { font-size: 32px; font-weight: 800; color: #0f172a; }
-            QLabel#muted { color: #64748b; }
-            QLineEdit, QComboBox { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; min-height: 22px; }
-            QLineEdit:focus, QComboBox:focus { border-color: #2563eb; }
-            QPushButton { background: #2563eb; color: white; border: 0; border-radius: 6px; padding: 9px 14px; font-weight: 600; }
-            QPushButton:hover { background: #1d4ed8; }
+            QTabBar::tab { background: %3; padding: 10px 18px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; }
+            QTabBar::tab:selected { background: %4; color: %5; }
+            QFrame#card { background: %4; border: 1px solid %3; border-radius: 8px; }
+            QLabel#sectionTitle { font-size: 18px; font-weight: 700; color: %2; }
+            QLabel#total { font-size: 32px; font-weight: 800; color: %2; }
+            QLabel#muted { color: %6; }
+            QLineEdit, QComboBox { background: %7; border: 1px solid %8; border-radius: 6px; padding: 8px; min-height: 22px; color: %2; }
+            QLineEdit:focus, QComboBox:focus { border-color: %5; }
+            QPushButton { background: %5; color: white; border: 0; border-radius: 6px; padding: 9px 14px; font-weight: 600; }
+            QPushButton:hover { background: %9; }
             QPushButton#danger { background: #dc2626; }
             QPushButton#danger:hover { background: #b91c1c; }
-            QHeaderView::section { background: #f8fafc; border: 0; padding: 7px; color: #475569; font-weight: 700; }
-            QTableWidget { background: #ffffff; border: 0; gridline-color: #e2e8f0; }
-        )");
+            QHeaderView::section { background: %10; border: 0; padding: 7px; color: %6; font-weight: 700; }
+            QTableWidget { background: %4; border: 0; gridline-color: %3; color: %2; }
+            QTableWidget::item { color: %2; }
+            QComboBox QAbstractItemView { background: %4; color: %2; selection-background-color: %5; }
+        )")
+            .arg(d ? "#0f172a" : "#f1f5f9")     // %1 main bg
+            .arg(d ? "#e2e8f0" : "#0f172a")     // %2 main text
+            .arg(d ? "#334155" : "#e2e8f0")     // %3 tab bg / card border
+            .arg(d ? "#1e293b" : "#ffffff")     // %4 card/surface bg
+            .arg(d ? "#60a5fa" : "#2563eb")     // %5 accent/selected
+            .arg(d ? "#94a3b8" : "#64748b")     // %6 muted
+            .arg(d ? "#1e293b" : "#ffffff")     // %7 input bg
+            .arg(d ? "#475569" : "#cbd5e1")     // %8 input border
+            .arg(d ? "#3b82f6" : "#1d4ed8")     // %9 accent hover
+            .arg(d ? "#1e293b" : "#f8fafc")     // %10 header section
+        );
     }
 
     void refresh_all() {
@@ -632,8 +674,11 @@ private:
         if (privacy_btn_) privacy_btn_->setText(privacy_hidden_
             ? QString::fromUtf8("\xF0\x9F\x91\x81\xE2\x80\x8D\xE2\x97\xA8\xEF\xB8\x8F")
             : QString::fromUtf8("\xF0\x9F\x91\x81"));
-        pie_chart_->set_portfolio(&portfolio_, privacy_hidden_);
-        allocation_chart_->set_portfolio(&portfolio_, privacy_hidden_);
+        if (dark_btn_) dark_btn_->setText(dark_mode_
+            ? QString::fromUtf8("\xF0\x9F\x94\x86")
+            : QString::fromUtf8("\xF0\x9F\x8C\x99"));
+        pie_chart_->set_portfolio(&portfolio_, privacy_hidden_, dark_mode_);
+        allocation_chart_->set_portfolio(&portfolio_, privacy_hidden_, dark_mode_);
         refresh_table();
         refresh_combo();
         refresh_available();
@@ -676,6 +721,15 @@ private:
 
     void toggle_privacy() {
         privacy_hidden_ = !privacy_hidden_;
+        refresh_all();
+    }
+
+    void toggle_dark_mode() {
+        dark_mode_ = !dark_mode_;
+        if (dark_btn_) dark_btn_->setText(dark_mode_
+            ? QString::fromUtf8("\xF0\x9F\x94\x86")
+            : QString::fromUtf8("\xF0\x9F\x8C\x99"));
+        apply_style();
         refresh_all();
     }
 
@@ -740,7 +794,7 @@ private:
         const auto* asset = portfolio_.find_asset(name);
         if (!asset) return;
         category_name_->setText(qstr(asset->name));
-        category_amount_->setText(fmt(asset->amount_cents, privacy_hidden_));
+        category_amount_->setText(qstr(finance::format_money(asset->amount_cents)));
         category_replace_->setChecked(true);
         tabs_->setCurrentIndex(1);
     }
