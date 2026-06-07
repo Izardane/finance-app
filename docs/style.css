@@ -24,6 +24,14 @@ body {
   max-width: 100vw;
 }
 
+#main-app {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* Auth Screen */
 #auth-screen {
   display: flex;
