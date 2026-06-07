@@ -226,7 +226,7 @@ function initGoogleApi() {
   }
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: '26076813279-kq5gdq1dnq2trsleg1s7f7g27delvrk5.apps.googleusercontent.com',
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive',
     callback: tokenResponse => {
       if (tokenResponse.access_token) {
         accessToken = tokenResponse.access_token;
