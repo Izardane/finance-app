@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Finance Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Auth Screen -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-icon">
+        <svg width="64" height="64" viewBox="0 0 512 512"><rect width="512" height="512" rx="64" fill="#2563eb"/><circle cx="256" cy="220" r="110" fill="none" stroke="#fff" stroke-width="28"/><circle cx="256" cy="220" r="40" fill="#fff"/><rect x="160" y="320" width="60" height="100" rx="8" fill="#fff"/><rect x="230" y="280" width="60" height="140" rx="8" fill="#fff"/><rect x="300" y="340" width="60" height="80" rx="8" fill="#fff"/></svg>
+      </div>
+      <h1>Finance Dashboard</h1>
+      <p class="auth-desc">Track investments and earmarks. Syncs with your computer via Google Drive.</p>
+      <button id="sign-in-btn" class="btn btn-primary btn-lg" onclick="handleSignIn()">
+        <svg width="20" height="20" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:8px"><path fill="#fff" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 18.5-7.7 18.5-18.5 0-1.2-.2-2.5-.5-3.5z"/></svg>
+        Sign in with Google
+      </button>
+      <p class="auth-offline">
+        <a href="#" onclick="startOffline()" style="color:#64748b;font-size:13px;">Continue without syncing</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="main-app" style="display:none">
+
+    <!-- Header -->
+    <header>
+      <div class="header-left">
+        <span class="sync-status" id="sync-status">○</span>
+        <span class="app-title">Finance Dashboard</span>
+      </div>
+      <div class="header-right">
+        <span class="drive-status" id="drive-status" title="Google Drive connection"></span>
+      </div>
+    </header>
+
+    <!-- Tab Content -->
+    <main id="tab-container">
+
+      <!-- Dashboard Tab -->
+      <div id="tab-dashboard" class="tab-pane active">
+        <div class="total-card">
+          <div class="total-label">Total Portfolio</div>
+          <div class="total-amount" id="total-amount">₹0.00</div>
+        </div>
+        <div class="card">
+          <canvas id="pie-chart" width="400" height="400"></canvas>
+          <div id="pie-legend"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Categories</div>
+          <div id="dashboard-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Earmarks</div>
+          <div id="dashboard-earmarks"></div>
+        </div>
+      </div>
+
+      <!-- Categories Tab -->
+      <div id="tab-categories" class="tab-pane">
+        <div class="card">
+          <div class="card-title" id="cat-form-title">Add Category</div>
+          <form id="category-form" onsubmit="return onSaveCategory(event)">
+            <input type="hidden" id="cat-edit-name">
+            <label class="field-label">Category Name</label>
+            <input type="text" id="cat-name" class="input" placeholder="Bank FD, Stocks, Gold" required>
+            <label class="field-label">Amount</label>
+            <input type="text" id="cat-amount" class="input" placeholder="369280" required>
+            <div class="mode-group">
+              <label class="mode-option">
+                <input type="radio" name="cat-mode" value="replace" checked>
+                <span>Set new amount</span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="cat-mode" value="add">
+                <span>Add to existing</span>
+              </label>
+            </div>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="cat-save-btn">Save</button>
+              <button type="button" class="btn btn-outline" id="cat-cancel-btn" style="display:none" onclick="cancelCategoryEdit()">Cancel</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">All Categories</div>
+          <div id="categories-list"></div>
+        </div>
+      </div>
+
+      <!-- Earmarks Tab -->
+      <div id="tab-earmarks" class="tab-pane">
+        <div class="card">
+          <div class="card-title">Select Investment</div>
+          <select id="earmark-asset-select" class="input" onchange="onEarmarkAssetChange()"></select>
+        </div>
+        <div class="card">
+          <div class="card-title" id="earmark-form-title">Add Earmark</div>
+          <form id="earmark-form" onsubmit="return onSaveEarmark(event)">
+            <input type="hidden" id="earmark-edit-name">
+            <label class="field-label">Purpose</label>
+            <input type="text" id="earmark-purpose" class="input" placeholder="Vacation, Phone, Emergency fund" required>
+            <label class="field-label">Amount</label>
+            <input type="text" id="earmark-amount" class="input" placeholder="341620" required>
+            <div class="btn-row">
+              <button type="submit" class="btn btn-primary" id="earmark-save-btn">Save</button>
+              <button type="button" class="btn btn-outline" id="earmark-cancel-btn" style="display:none" onclick="cancelEarmarkEdit()">Cancel</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Allocations</div>
+          <div id="earmarks-list"></div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="tab-settings" class="tab-pane">
+        <div class="card">
+          <div class="card-title">Google Drive Sync</div>
+          <div id="drive-info">
+            <p>Not connected</p>
+          </div>
+          <button id="drive-action-btn" class="btn btn-primary" onclick="onDriveAction()">Sign in</button>
+        </div>
+        <div class="card">
+          <div class="card-title">Data</div>
+          <div class="btn-row">
+            <button class="btn btn-outline" onclick="exportData()">Export</button>
+            <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Import</button>
+            <input type="file" id="import-file" accept=".txt" style="display:none" onchange="importData(event)">
+          </div>
+          <button class="btn btn-danger" onclick="clearAll()" style="margin-top:12px;width:100%">Clear All Data</button>
+        </div>
+        <div class="card" style="color:#64748b;font-size:13px;line-height:1.6">
+          <p><strong>Sync Guide:</strong></p>
+          <p>1. Install the C++ desktop app and set it to read/write <code>portfolio.txt</code> from your Google Drive folder (via Google Drive for Desktop).</p>
+          <p>2. Both the PWA and the desktop app share the same file on Drive.</p>
+          <p>3. The PWA downloads the file on open and uploads on every save.</p>
+          <p>4. Always sync before switching devices.</p>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav">
+      <button class="nav-item active" data-tab="dashboard" onclick="showTab('dashboard')">
+        <span class="nav-icon">&#9632;</span>
+        <span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-item" data-tab="categories" onclick="showTab('categories')">
+        <span class="nav-icon">&#9776;</span>
+        <span class="nav-label">Categories</span>
+      </button>
+      <button class="nav-item" data-tab="earmarks" onclick="showTab('earmarks')">
+        <span class="nav-icon">&#9872;</span>
+        <span class="nav-label">Earmarks</span>
+      </button>
+      <button class="nav-item" data-tab="settings" onclick="showTab('settings')">
+        <span class="nav-icon">&#9881;</span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
