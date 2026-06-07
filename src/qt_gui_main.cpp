@@ -51,6 +51,22 @@ std::string str(const QString& value) {
     return value.trimmed().toStdString();
 }
 
+QString fmt(const finance::Money& cents, bool masked = false) {
+    if (masked) {
+        auto s = finance::format_money(cents);
+        std::string out;
+        for (char c : s) {
+            if (std::isdigit(static_cast<unsigned char>(c)) || c == ',') {
+                out += "\u2022";
+            } else {
+                out += c;
+            }
+        }
+        return qstr(out);
+    }
+    return qstr(finance::format_money(cents));
+}
+
 QColor palette_color(std::size_t index) {
     static const std::array<QColor, 10> colors{
         QColor("#2563eb"), QColor("#dc2626"), QColor("#16a34a"), QColor("#ca8a04"),
@@ -68,8 +84,9 @@ public:
         setMouseTracking(true);
     }
 
-    void set_portfolio(const finance::Portfolio* portfolio) {
+    void set_portfolio(const finance::Portfolio* portfolio, bool privacy = false) {
         portfolio_ = portfolio;
+        privacy_ = privacy;
         update();
     }
 
@@ -163,7 +180,7 @@ protected:
                 const auto& slice = slices[i];
                 setToolTip(QString("%1\n%2  (%3%)")
                     .arg(qstr(slice.label))
-                    .arg(qstr(finance::format_money(slice.amount_cents)))
+                    .arg(fmt(slice.amount_cents, privacy_))
                     .arg(slice.percentage, 0, 'f', 1));
                 return;
             }
@@ -180,8 +197,10 @@ private:
             painter.setPen(Qt::NoPen);
             painter.drawRect(x, y, 12, 12);
             painter.setPen(QColor("#0f172a"));
-            const QString text = qstr(slices[i].label + "  " + finance::format_money(slices[i].amount_cents));
-            painter.drawText(x + 18, y + 11, text);
+            const QColor text_color = privacy_ ? QColor("#94a3b8") : QColor("#0f172a");
+            painter.setPen(text_color);
+            const QString text = fmt(slices[i].amount_cents, privacy_);
+            painter.drawText(x + 18, y + 11, qstr(slices[i].label + "  ") + text);
 
             x += 18 + painter.fontMetrics().horizontalAdvance(text) + 16;
             if (x > width() - 60) {
@@ -192,6 +211,7 @@ private:
     }
 
     const finance::Portfolio* portfolio_{};
+    bool privacy_{};
     QRectF last_pie_rect_;
     std::vector<std::pair<int, int>> slice_ranges_;
 };
@@ -202,8 +222,9 @@ public:
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     }
 
-    void set_portfolio(finance::Portfolio* portfolio) {
+    void set_portfolio(finance::Portfolio* portfolio, bool privacy = false) {
         portfolio_ = portfolio;
+        privacy_ = privacy;
         update();
         updateGeometry();
     }
@@ -230,7 +251,7 @@ protected:
         for (const auto& asset : portfolio_->assets()) {
             painter.setFont(label_font);
             painter.setPen(QColor("#0f172a"));
-            painter.drawText(24, y, qstr(asset.name + "  " + finance::format_money(asset.amount_cents)));
+            painter.drawText(24, y, qstr(asset.name + "  ") + fmt(asset.amount_cents, privacy_));
             y += 14;
 
             const QRect bar(24, y, width() - 48, 28);
@@ -263,7 +284,7 @@ protected:
                 painter.setPen(Qt::NoPen);
                 painter.drawRect(legend_x, y - 10, 10, 10);
                 painter.setPen(QColor("#475569"));
-                const QString label = qstr(asset.earmarks[i].name + " " + finance::format_money(asset.earmarks[i].amount_cents));
+                const QString label = qstr(asset.earmarks[i].name + " ") + fmt(asset.earmarks[i].amount_cents, privacy_);
                 painter.drawText(legend_x + 16, y, label);
                 legend_x += 180;
                 if (legend_x > width() - 160) {
@@ -352,6 +373,7 @@ private:
     }
 
     finance::Portfolio* portfolio_{};
+    bool privacy_{};
     std::vector<HitRegion> hit_regions_;
 };
 
@@ -386,6 +408,8 @@ private:
     finance::Portfolio portfolio_;
     QTabWidget* tabs_{};
     QLabel* total_label_{};
+    QPushButton* privacy_btn_{};
+    bool privacy_hidden_{true};
     PieChart* pie_chart_{};
     QTableWidget* category_table_{};
     QLineEdit* category_name_{};
@@ -407,12 +431,24 @@ private:
         auto* top = new QHBoxLayout;
         auto* summary = card();
         auto* summary_layout = new QVBoxLayout(summary);
+        auto* total_title_widget = new QWidget;
+        auto* total_title_layout = new QHBoxLayout(total_title_widget);
+        total_title_layout->setContentsMargins(0, 0, 0, 0);
         auto* total_title = new QLabel("Total portfolio");
         total_title->setObjectName("muted");
+        privacy_btn_ = new QPushButton(QString::fromUtf8("\xF0\x9F\x91\x81\xE2\x80\x8D\xE2\x97\xA8\xEF\xB8\x8F"));
+        privacy_btn_->setFixedSize(28, 28);
+        privacy_btn_->setToolTip("Toggle privacy (hide/show amounts)");
+        privacy_btn_->setCursor(Qt::PointingHandCursor);
+        privacy_btn_->setStyleSheet("QPushButton { background: transparent; border: 1px solid #cbd5e1; border-radius: 14px; font-size: 14px; padding: 0; } QPushButton:hover { background: #e2e8f0; }");
+        connect(privacy_btn_, &QPushButton::clicked, this, [this] { toggle_privacy(); });
+        total_title_layout->addWidget(total_title);
+        total_title_layout->addStretch(1);
+        total_title_layout->addWidget(privacy_btn_);
         total_label_ = new QLabel;
         total_label_->setObjectName("total");
         pie_chart_ = new PieChart;
-        summary_layout->addWidget(total_title);
+        summary_layout->addWidget(total_title_widget);
         summary_layout->addWidget(total_label_);
         summary_layout->addWidget(pie_chart_, 1);
 
@@ -592,9 +628,12 @@ private:
     }
 
     void refresh_all() {
-        total_label_->setText(qstr(finance::format_money(portfolio_.total_cents())));
-        pie_chart_->set_portfolio(&portfolio_);
-        allocation_chart_->set_portfolio(&portfolio_);
+        total_label_->setText(fmt(portfolio_.total_cents(), privacy_hidden_));
+        if (privacy_btn_) privacy_btn_->setText(privacy_hidden_
+            ? QString::fromUtf8("\xF0\x9F\x91\x81\xE2\x80\x8D\xE2\x97\xA8\xEF\xB8\x8F")
+            : QString::fromUtf8("\xF0\x9F\x91\x81"));
+        pie_chart_->set_portfolio(&portfolio_, privacy_hidden_);
+        allocation_chart_->set_portfolio(&portfolio_, privacy_hidden_);
         refresh_table();
         refresh_combo();
         refresh_available();
@@ -605,7 +644,7 @@ private:
         category_table_->setRowCount(static_cast<int>(slices.size()));
         for (int row = 0; row < static_cast<int>(slices.size()); ++row) {
             category_table_->setItem(row, 0, new QTableWidgetItem(qstr(slices[row].label)));
-            category_table_->setItem(row, 1, new QTableWidgetItem(qstr(finance::format_money(slices[row].amount_cents))));
+            category_table_->setItem(row, 1, new QTableWidgetItem(fmt(slices[row].amount_cents, privacy_hidden_)));
             category_table_->setItem(row, 2, new QTableWidgetItem(QString::number(slices[row].percentage, 'f', 1) + "%"));
         }
     }
@@ -632,7 +671,12 @@ private:
         }
         const finance::Money earmarked = portfolio_.earmarked_total_cents(asset->name);
         const finance::Money available = asset->amount_cents - earmarked;
-        available_label_->setText(qstr("Available: " + finance::format_money(available) + " of " + finance::format_money(asset->amount_cents)));
+        available_label_->setText(qstr("Available: ") + fmt(available, privacy_hidden_) + qstr(" of ") + fmt(asset->amount_cents, privacy_hidden_));
+    }
+
+    void toggle_privacy() {
+        privacy_hidden_ = !privacy_hidden_;
+        refresh_all();
     }
 
     const finance::Asset* selected_asset() const {
@@ -696,7 +740,7 @@ private:
         const auto* asset = portfolio_.find_asset(name);
         if (!asset) return;
         category_name_->setText(qstr(asset->name));
-        category_amount_->setText(qstr(finance::format_money(asset->amount_cents)));
+        category_amount_->setText(fmt(asset->amount_cents, privacy_hidden_));
         category_replace_->setChecked(true);
         tabs_->setCurrentIndex(1);
     }

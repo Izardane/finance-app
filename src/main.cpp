@@ -11,6 +11,18 @@ namespace {
 constexpr auto kDataFile = "data/portfolio.txt";
 constexpr auto kChartFile = "dashboard_pie.svg";
 
+std::string mask_str(const std::string& s) {
+    std::string out;
+    for (char c : s) {
+        if (std::isdigit(static_cast<unsigned char>(c)) || c == ',') {
+            out += "\u2022";
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
 std::string prompt_line(const std::string& label) {
     std::cout << label;
     std::string value;
@@ -28,9 +40,10 @@ finance::Money prompt_money(const std::string& label) {
     }
 }
 
-void print_dashboard(const finance::Portfolio& portfolio) {
+void print_dashboard(const finance::Portfolio& portfolio, bool masked = false) {
     std::cout << "\nHome dashboard\n";
-    std::cout << "Total portfolio: " << finance::format_money(portfolio.total_cents()) << "\n\n";
+    const auto tf = [masked](finance::Money c) { return masked ? mask_str(finance::format_money(c)) : finance::format_money(c); };
+    std::cout << "Total portfolio: " << tf(portfolio.total_cents()) << "\n\n";
 
     const auto slices = portfolio.distribution();
     if (slices.empty()) {
@@ -41,7 +54,7 @@ void print_dashboard(const finance::Portfolio& portfolio) {
     for (const auto& slice : slices) {
         const int bar = static_cast<int>(slice.percentage / 2.0);
         std::cout << std::left << std::setw(22) << slice.label
-                  << std::right << std::setw(14) << finance::format_money(slice.amount_cents)
+                  << std::right << std::setw(14) << tf(slice.amount_cents)
                   << "  " << std::setw(5) << std::fixed << std::setprecision(1) << slice.percentage << "%  ";
         for (int i = 0; i < bar; ++i) {
             std::cout << '#';
@@ -55,7 +68,7 @@ void print_dashboard(const finance::Portfolio& portfolio) {
         for (const auto& earmark : asset.earmarks) {
             has_earmarks = true;
             std::cout << "  " << asset.name << " -> " << earmark.name
-                      << ": " << finance::format_money(earmark.amount_cents) << '\n';
+                      << ": " << tf(earmark.amount_cents) << '\n';
         }
     }
     if (!has_earmarks) {
@@ -84,7 +97,7 @@ void add_or_update_assets(finance::Portfolio& portfolio) {
     }
 }
 
-void add_or_update_earmarks(finance::Portfolio& portfolio) {
+void add_or_update_earmarks(finance::Portfolio& portfolio, bool masked = false) {
     while (true) {
         if (portfolio.assets().empty()) {
             std::cout << "Add an investment category first.\n";
@@ -93,9 +106,10 @@ void add_or_update_earmarks(finance::Portfolio& portfolio) {
 
         std::cout << "\nAdd/update earmark\n";
         std::cout << "Existing categories:\n";
+        const auto tf = [masked](finance::Money c) { return masked ? mask_str(finance::format_money(c)) : finance::format_money(c); };
         for (const auto& asset : portfolio.assets()) {
             const auto available = asset.amount_cents - portfolio.earmarked_total_cents(asset.name);
-            std::cout << "  " << asset.name << " (" << finance::format_money(available) << " available)\n";
+            std::cout << "  " << asset.name << " (" << tf(available) << " available)\n";
         }
 
         std::cout << "Leave the category name empty to return to the main menu.\n";
@@ -123,6 +137,7 @@ int main() {
         std::cout << "Could not read existing portfolio data. Starting with an empty portfolio.\n";
     }
 
+    bool privacy_hidden = true;
     while (true) {
         std::cout << "\nPersonal Finance Dashboard\n";
         std::cout << "1. Home dashboard\n";
@@ -130,6 +145,7 @@ int main() {
         std::cout << "3. Add/update earmark\n";
         std::cout << "4. Save and generate pie chart\n";
         std::cout << "5. Quit\n";
+        std::cout << "6. Toggle privacy (currently: " << (privacy_hidden ? "HIDDEN" : "VISIBLE") << ")\n";
         std::cout << "Choice: ";
 
         int choice = 0;
@@ -141,13 +157,13 @@ int main() {
 
         switch (choice) {
         case 1:
-            print_dashboard(portfolio);
+            print_dashboard(portfolio, privacy_hidden);
             break;
         case 2:
             add_or_update_assets(portfolio);
             break;
         case 3:
-            add_or_update_earmarks(portfolio);
+            add_or_update_earmarks(portfolio, privacy_hidden);
             break;
         case 4:
             if (const auto error = portfolio.validate()) {
@@ -168,6 +184,9 @@ int main() {
             finance::save_portfolio(portfolio, kDataFile);
             finance::write_pie_chart_svg(portfolio, kChartFile);
             return 0;
+        case 6:
+            privacy_hidden = !privacy_hidden;
+            break;
         default:
             std::cout << "Choose one of the listed options.\n";
             break;

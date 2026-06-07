@@ -162,6 +162,7 @@ let isSaving = false;
 
 const LS_KEY = 'finance_portfolio';
 const DARK_KEY = 'finance_dark';
+const PRIVACY_KEY = 'finance_privacy';
 
 const SEED_DATA = `\
 ASSET|Equitas FD|10613600\
@@ -189,6 +190,28 @@ function toggleDarkMode() {
   applyTheme();
   const btn = document.getElementById('dark-mode-btn');
   if (btn) btn.textContent = dark ? '☀\uFE0F Light Mode' : '🌙 Dark Mode';
+}
+
+function isRevealed() {
+  return localStorage.getItem(PRIVACY_KEY) === 'true';
+}
+
+function togglePrivacy() {
+  const r = !isRevealed();
+  localStorage.setItem(PRIVACY_KEY, r);
+  const icon = document.getElementById('privacy-icon');
+  if (icon) icon.textContent = r ? '👁' : '👁‍🗨';
+  renderDashboard();
+  renderCategories();
+  renderEarmarks();
+}
+
+function maskAmount(str) {
+  return str.replace(/[\d,]/g, '•');
+}
+
+function fmt(cents) {
+  return isRevealed() ? formatMoney(cents) : maskAmount(formatMoney(cents));
 }
 
 /* ============ Google Drive OAuth ============ */
@@ -566,7 +589,7 @@ function renderPieChart() {
     const item = document.createElement('div');
     item.className = 'pie-legend-item';
     item.innerHTML = '<span class="pie-legend-dot" style="background:' + PIE_COLORS[i % PIE_COLORS.length] + '"></span>'
-      + slices[i].label + ' ' + formatMoney(slices[i].amount_cents)
+      + slices[i].label + ' ' + fmt(slices[i].amount_cents)
       + ' (' + slices[i].percentage.toFixed(1) + '%)';
     legend.appendChild(item);
   }
@@ -615,7 +638,7 @@ function renderPieChart() {
 /* ============ Dashboard Tab ============ */
 
 function renderDashboard() {
-  document.getElementById('total-amount').textContent = formatMoney(portfolio.totalCents());
+  document.getElementById('total-amount').textContent = fmt(portfolio.totalCents());
   renderPieChart();
   renderDashboardList();
   renderDashboardEarmarks();
@@ -635,7 +658,7 @@ function renderDashboardList() {
         + '<span class="dash-cat-name">' + escHtml(s.label) + '</span>'
       + '</div>'
       + '<div class="dash-cat-right">'
-        + '<div class="dash-cat-amount">' + formatMoney(s.amount_cents) + '</div>'
+        + '<div class="dash-cat-amount">' + fmt(s.amount_cents) + '</div>'
         + '<div class="dash-cat-pct">' + s.percentage.toFixed(1) + '%</div>'
       + '</div>'
     + '</div>'
@@ -654,7 +677,7 @@ function renderDashboardEarmarks() {
           + '<span class="dash-cat-name">' + escHtml(asset.name) + ' → ' + escHtml(earmark.name) + '</span>'
         + '</div>'
         + '<div class="dash-cat-right">'
-          + '<div class="dash-cat-amount">' + formatMoney(earmark.amount_cents) + '</div>'
+          + '<div class="dash-cat-amount">' + fmt(earmark.amount_cents) + '</div>'
         + '</div>'
       + '</div>';
     }
@@ -743,7 +766,7 @@ function renderCategories() {
         + '<div class="list-item-sub">' + a.earmarks.length + ' earmarks</div>'
       + '</div>'
       + '<div class="list-item-right">'
-        + '<div class="list-item-amount">' + formatMoney(a.amount_cents) + '</div>'
+        + '<div class="list-item-amount">' + fmt(a.amount_cents) + '</div>'
       + '</div>'
       + '<div class="item-actions">'
         + '<button class="item-btn edit-btn" onclick="editCategory(\'' + jsEsc(a.name) + '\')" title="Edit">&#9998;</button>'
@@ -846,7 +869,7 @@ function renderEarmarks() {
     '<div class="earmark-item">'
       + '<div class="list-item-left">'
         + '<div class="list-item-name">' + escHtml(e.name) + '</div>'
-        + '<div class="list-item-sub">' + formatMoney(e.amount_cents) + '</div>'
+        + '<div class="list-item-sub">' + fmt(e.amount_cents) + '</div>'
       + '</div>'
       + '<div class="item-actions">'
         + '<button class="item-btn edit-btn" onclick="editEarmark(\'' + jsEsc(assetName) + '\',\'' + jsEsc(e.name) + '\')" title="Edit">&#9998;</button>'
@@ -876,7 +899,7 @@ function renderEarmarkBar(asset) {
     const pct = total > 0 ? (asset.earmarks[i].amount_cents / total * 100) : 0;
     html += '<span class="earmark-legend-item">'
       + '<span class="earmark-legend-dot" style="background:' + PIE_COLORS[i % PIE_COLORS.length] + '"></span>'
-      + escHtml(asset.earmarks[i].name) + ' ' + formatMoney(asset.earmarks[i].amount_cents)
+      + escHtml(asset.earmarks[i].name) + ' ' + fmt(asset.earmarks[i].amount_cents)
       + ' (' + pct.toFixed(1) + '%)'
       + '</span>';
   }
@@ -933,12 +956,15 @@ function jsEsc(str) {
 /* ============ Init ============ */
 
 function init() {
-  // Apply dark mode preference
+  // Apply preferences
   applyTheme();
+  const pi = document.getElementById('privacy-icon');
+  if (pi) pi.textContent = isRevealed() ? '👁' : '👁‍🗨';
 
   // Register service worker
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').then(reg => {
+    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then(reg => {
+      reg.update();
       if (reg.waiting) {
         reg.waiting.postMessage('skipWaiting');
         window.location.reload();
