@@ -161,6 +161,35 @@ let isOnlineMode = false;
 let isSaving = false;
 
 const LS_KEY = 'finance_portfolio';
+const DARK_KEY = 'finance_dark';
+
+const SEED_DATA = `\
+ASSET|Equitas FD|10613600\
+\nEARMARK|Equitas FD|Vehicle|4963900\
+\nASSET|Equitas SB|538594\
+\nASSET|ICICI FD|36928000\
+\nEARMARK|ICICI FD|Corpus|34162000\
+\nASSET|ICICI SB|4781292\
+\nASSET|IND FD|16908400\
+\nEARMARK|IND FD|Vacation|4489700\
+\nEARMARK|IND FD|Computer|4887300\
+\nEARMARK|IND FD|Phone|7531400\
+\nASSET|IND SB|2268600\
+\nASSET|Stocks|4969844\
+`;
+
+function applyTheme() {
+  const dark = localStorage.getItem(DARK_KEY) === 'true';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+}
+
+function toggleDarkMode() {
+  const dark = localStorage.getItem(DARK_KEY) !== 'true';
+  localStorage.setItem(DARK_KEY, dark);
+  applyTheme();
+  const btn = document.getElementById('dark-mode-btn');
+  if (btn) btn.textContent = dark ? '☀\uFE0F Light Mode' : '🌙 Dark Mode';
+}
 
 /* ============ Google Drive OAuth ============ */
 
@@ -217,6 +246,10 @@ function startOffline() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
   loadLocal();
+  if (portfolio.assets.length === 0 && SEED_DATA.trim()) {
+    portfolio = parsePortfolio(SEED_DATA);
+    saveLocal();
+  }
   renderAll();
 }
 
@@ -420,7 +453,9 @@ function updateDriveUI() {
   const status = document.getElementById('drive-status');
   const info = document.getElementById('drive-info');
   const btn = document.getElementById('drive-action-btn');
+  const darkBtn = document.getElementById('dark-mode-btn');
   if (!status || !info || !btn) return;
+  if (darkBtn) darkBtn.textContent = localStorage.getItem(DARK_KEY) === 'true' ? '☀\uFE0F Light Mode' : '🌙 Dark Mode';
   if (isOnlineMode) {
     status.className = 'drive-status connected';
     info.innerHTML = '<p style="color:#22c55e;font-weight:600">Connected to Google Drive</p>'
@@ -439,7 +474,7 @@ function showToast(msg, isError = false) {
   const el = document.getElementById('toast');
   if (!el) return;
   el.textContent = msg;
-  el.style.background = isError ? '#dc2626' : '#0f172a';
+  el.classList.toggle('toast-error', isError);
   el.classList.add('show');
   clearTimeout(el._timer);
   el._timer = setTimeout(() => el.classList.remove('show'), 3000);
@@ -898,6 +933,9 @@ function jsEsc(str) {
 /* ============ Init ============ */
 
 function init() {
+  // Apply dark mode preference
+  applyTheme();
+
   // Register service worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').then(reg => {
@@ -928,6 +966,12 @@ function init() {
 
   // Try to load from local
   loadLocal();
+
+  // Seed initial data if first launch
+  if (portfolio.assets.length === 0 && SEED_DATA.trim()) {
+    portfolio = parsePortfolio(SEED_DATA);
+    saveLocal();
+  }
 
   // Show auth screen
   document.getElementById('auth-screen').style.display = 'flex';
