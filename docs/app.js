@@ -481,7 +481,7 @@ function renderPieChart() {
   if (!canvas || !legend) return;
   const ctx = canvas.getContext('2d');
   const rect = canvas.parentElement.getBoundingClientRect();
-  const size = Math.min(rect.width - 32, 300, window.innerWidth - 64);
+  const size = Math.max(120, Math.min(rect.width - 32, 260, window.innerWidth - 48));
   const dpr = window.devicePixelRatio || 1;
   canvas.width = size * dpr;
   canvas.height = size * dpr;
@@ -900,7 +900,24 @@ function jsEsc(str) {
 function init() {
   // Register service worker
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js');
+    navigator.serviceWorker.register('service-worker.js').then(reg => {
+      if (reg.waiting) {
+        reg.waiting.postMessage('skipWaiting');
+        window.location.reload();
+      }
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            sw.postMessage('skipWaiting');
+            window.location.reload();
+          }
+        });
+      });
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    });
   }
 
   // Load Google Identity Services
